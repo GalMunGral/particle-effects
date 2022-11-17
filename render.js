@@ -1,6 +1,6 @@
 const { mat4, vec3 } = glMatrix;
 
-const BOX_SIZE = 500;
+const BOX_SIZE = 100;
 const NEAR_PLANE = 10;
 const FAR_PLANE = 4 * BOX_SIZE;
 
@@ -11,58 +11,119 @@ var geom;
 const m = mat4.create();
 const v = mat4.create();
 const p = mat4.create();
-const camera = vec3.fromValues(BOX_SIZE, -BOX_SIZE, BOX_SIZE);
+const camera = vec3.fromValues(BOX_SIZE, -BOX_SIZE, BOX_SIZE / 2);
 const center = vec3.fromValues(0, 0, 0);
 const up = vec3.fromValues(0, 0, 1);
 mat4.lookAt(v, camera, center, up);
 
-const RADIUS = 30
+const MIN_RADIUS = BOX_SIZE / 30;
+const MAX_RADIUS = BOX_SIZE / 10;
 
 
 // physics
 
-const particles = Array(50).fill(0).map((_, i) => {
-  let position = vec3.fromValues(0, 0, 0);
-  // let velocity = vec3.create();
-  let velocity = vec3.fromValues(Math.random() * 1000 - 500, Math.random() * 1000 - 500, Math.random() * 1000 - 500);
-  return {
-    color: new Float32Array([Math.random(), Math.random(), Math.random()]),
-    position,
-    velocity
-  };
-});
+function random(min, max) {
+  return Math.random() * (max - min) + min;
+}
 
-let time = 0;
+let particles = [];
+
+function resetParticles() {
+  particles = Array(50).fill(0).map((_, i) => {
+    let position = vec3.fromValues(0, 0, 0);
+    let velocity = vec3.fromValues(random(-500, 500), random(-500, 500), random(-500, 500));
+    const radius = random(MIN_RADIUS, MAX_RADIUS)
+    return {
+      color: new Float32Array([Math.random(), Math.random(), Math.random()]),
+      mass: radius ** 3,
+      radius,
+      position,
+      velocity
+    };
+  });
+}
+
+setInterval(resetParticles, 8000);
+resetParticles();
+
 
 const g = vec3.fromValues(0, 0, -9.8);
 
-function drawParticle({ position, velocity, color }, dt) {
-  // console.log('draw particle', position, velocity, dt)
+const T = mat4.create();
+const S = mat4.create();
+
+function stateUpdate(p, dt) {
+  const { position, velocity } = p;
   vec3.scaleAndAdd(position, position, velocity, dt);
 
   for (let i = 0; i < 3; ++i) {
-    if (position[i] >= BOX_SIZE/2 && velocity[i] > 0 || position[i] <= -BOX_SIZE/2 && velocity[i] < 0) {
-      velocity[i] = -velocity[i];
+    if (position[i] > BOX_SIZE / 2) {
+      position[i] = BOX_SIZE / 2;
+      if (velocity[i] > 0) {
+        velocity[i] = -e * velocity[i];
+      }
+    } else if (position[i] < -BOX_SIZE / 2) {
+      position[i] = -BOX_SIZE / 2;
+      if (velocity[i] < 0) {
+        velocity[i] = -e * velocity[i];
+      }
     }
   }
   vec3.scale(velocity, velocity, 0.99);
   vec3.add(velocity, velocity, g);
 
-  mat4.fromTranslation(m, position);
+}
+
+function drawParticle(p, dt) {
+  
+  const { color, radius, velocity, position } = p;
+
+  // console.log('draw particle', position, velocity, dt)
+  // if (vec3.len(velocity) > 1) {
+    stateUpdate(p, dt);
+  // }
+
+
+ 
+  mat4.fromTranslation(T, position);
+  mat4.fromScaling(S, vec3.fromValues(radius, radius, radius));
+  mat4.mul(m, T, S);
   gl.uniformMatrix4fv(gl.getUniformLocation(program, 'm'), false, m);
   gl.vertexAttrib3fv(gl.getAttribLocation(program, 'color'), color);
   gl.drawElements(geom.mode, geom.count, geom.type, 0);
 }
 
+const e = 0.8;
+
+function detectCollision(p1, p2) {
+  const d = vec3.create();
+  vec3.sub(d, p2.position, p1.position);
+  if (vec3.len(d) >= p1.radius + p2.radius) return false;
+
+  vec3.normalize(d, d);
+  const s1 = vec3.dot(p1.velocity, d);
+  const s2 = vec3.dot(p2.velocity, d);
+  const s = s1 - s2;
+  if (s <= 0) return false;
+
+  vec3.scaleAndAdd(p1.velocity, p1.velocity, d, -(p2.mass / (p1.mass + p2.mass)) * (1 + e) * s);
+  vec3.scaleAndAdd(p2.velocity, p2.velocity, d, (p1.mass / (p1.mass + p2.mass)) * (1 + e) * s);
+  return true;
+}
+
 /**
  * Draw one frame
  */
-function draw(t) {
 
+let time = 0;
+
+function draw(t) {
   const dt = time ? (t - time) / 1000 : 0;
   time = t;
 
-  gl.clearColor(0.5, 0.5, 0.5, 0.5);
+  document.querySelector('#fps').textContent = `FPS: ${(1 / dt).toFixed(1)}`;
+
+  gl.clearColor(0.5, 0.5, 0.5, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   if (!geom) return;
@@ -73,14 +134,20 @@ function draw(t) {
   gl.uniformMatrix4fv(gl.getUniformLocation(program, 'v'), false, v);
   gl.uniformMatrix4fv(gl.getUniformLocation(program, 'p'), false, p);
 
-  particles.forEach(p => drawParticle(p, 0.016))
+  particles.forEach(p => drawParticle(p, dt))
+  for (let p1 of particles) {
+    for (let p2 of particles) {
+      detectCollision(p1, p2);
+    }
+  }
+  requestAnimationFrame(draw);
 }
 
 
 /**
  * Resizes the canvas to completely fill the screen
  */
-function fillScreen(t) {
+function fillScreen() {
   let canvas = document.querySelector('canvas')
   document.body.style.margin = '0'
   canvas.style.width = '100%'
@@ -94,10 +161,7 @@ function fillScreen(t) {
 
   if (gl) {
     gl.viewport(0, 0, canvas.width, canvas.height)
-    draw(t)
   }
-
-  requestAnimationFrame(fillScreen);
 }
 
 /**
@@ -116,9 +180,10 @@ async function setup(event) {
   // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   program = await compileAndLinkGLSL(gl, 'sphere_vertex.glsl', 'sphere_fragment.glsl');
-  geom = await setupGeomery(gl, program, generateSphere(20, 20, RADIUS));
+  geom = await setupGeomery(gl, program, generateSphere(20, 20));
 
-  requestAnimationFrame(fillScreen);
+  fillScreen();
+  requestAnimationFrame(draw);
 }
 
 const keysBeingPressed = {};
@@ -133,7 +198,7 @@ window.addEventListener('keyup', event => {
 window.addEventListener('load', setup)
 window.addEventListener('resize', fillScreen)
 
-function generateSphere(rings, slices, RADIUS = BOX_SIZE / 2) {
+function generateSphere(rings, slices) {
   const latStep = Math.PI / (rings - 1);
   const lngStep = 2 * Math.PI / slices;
   const ind = (i, j) => i * slices + j;
@@ -142,9 +207,9 @@ function generateSphere(rings, slices, RADIUS = BOX_SIZE / 2) {
   for (let i = 0; i < rings; ++i) {
     for (let j = 0; j < slices; ++j) {
       positions.push([
-        RADIUS * Math.sin(i * latStep) * Math.cos(lngStep * j),
-        RADIUS * Math.sin(i * latStep) * Math.sin(lngStep * j),
-        RADIUS * Math.cos(i * latStep)
+        Math.sin(i * latStep) * Math.cos(lngStep * j),
+        Math.sin(i * latStep) * Math.sin(lngStep * j),
+        Math.cos(i * latStep)
       ])
     }
   }
