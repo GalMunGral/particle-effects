@@ -7,22 +7,26 @@ var totalFrames = 0;
 // Physics 
 
 const BOX_SIZE = 4;
-const RESET_DELAY_MS = 4000;
+const RESET_DELAY_MS = 5000;
 const G_GRAVITY = vec3.fromValues(0, 0, -9.80665);
 const E_SPHERE = 0.9;
 const E_WALL = 0.5;
 const C_AIR = 0.1;
 
 var N_PARTICLE = 50;
+var MIN_RADIUS = 0;
+var MAX_RADIUS = 0;
+
 var particles = [];
 
-(function resetParticles() {
+var prevTimer = -1;
+function resetParticles() {
   prevTimestamp = 0;
   totalTime = 0;
   totalFrames = 0;
 
-  const MIN_RADIUS = 0.15 * BOX_SIZE / Math.sqrt(N_PARTICLE);
-  const MAX_RADIUS = 4 * MIN_RADIUS;
+  MIN_RADIUS = 0.15 * BOX_SIZE / Math.sqrt(N_PARTICLE);
+  MAX_RADIUS = 4 * MIN_RADIUS;
 
   particles = Array(N_PARTICLE).fill(0).map(() => {
     const color = vec3.fromValues(random(), random(), random());
@@ -39,9 +43,27 @@ var particles = [];
     };
   });
 
-  setTimeout(resetParticles, RESET_DELAY_MS);
-})();
+  clearTimeout(prevTimer);
+  prevTimer = setTimeout(resetParticles, RESET_DELAY_MS);
+}
 
+const d = vec3.create();
+function detectCollision(p1, p2) {
+  vec3.sub(d, p2.position, p1.position);
+  const dist = vec3.len(d);
+  if (dist > p1.radius + p2.radius) return;
+
+  vec3.normalize(d, d);
+  const s1 = vec3.dot(p1.velocity, d);
+  const s2 = vec3.dot(p2.velocity, d);
+  const s = s1 - s2;
+  if (s <= 0) return;
+
+  const w1 = p2.mass / (p1.mass + p2.mass);
+  const w2 = p1.mass / (p1.mass + p2.mass);
+  vec3.scaleAndAdd(p1.velocity, p1.velocity, d, -w1 * (1 + E_SPHERE) * s);
+  vec3.scaleAndAdd(p2.velocity, p2.velocity, d, +w2 * (1 + E_SPHERE) * s);
+}
 
 /**
  * Updates particle states using Euler's method
@@ -51,6 +73,10 @@ function updateParticles(dt) {
   // I. position update
   for (const p of particles) {
     vec3.scaleAndAdd(p.position, p.position, p.velocity, dt);
+    for (let i = 0; i < 3; ++i) {
+      // FIX: positions now needs to be clamped so that particles stay in the grid
+      p.position[i] = clamp(p.position[i], -BOX_SIZE / 2, BOX_SIZE / 2);
+    }
   }
 
   // II. velocity update
@@ -58,7 +84,7 @@ function updateParticles(dt) {
     // 1. gravity
     vec3.scaleAndAdd(p.velocity, p.velocity, G_GRAVITY, dt);
     // 2. drag: a = f/m = -cvr^2/m (assuming all particles are slow) --> dv = -cvr^2t/m
-    vec3.scaleAndAdd(p.velocity, p.velocity, p.velocity, - C_AIR * p.radius ** 2 * dt/ p.mass);
+    vec3.scaleAndAdd(p.velocity, p.velocity, p.velocity, - C_AIR * p.radius ** 2 * dt / p.mass);
     // 3. wall collisions: dv = -(1 + e)s --> v[i] = -ev[i]
     for (let i = 0; i < 3; ++i) {
       if (
@@ -70,23 +96,33 @@ function updateParticles(dt) {
     }
   }
   // 4. sphere-sphere collisions
-  const d = vec3.create();
+  // for (let p1 of particles) {
+  //   for (let p2 of particles) {
+  //     detectCollision(p1, p2);
+  //   }
+  // }
+  const GRID_SIZE = 2 * MAX_RADIUS;
+  const N = Math.floor(BOX_SIZE / GRID_SIZE) + 1;
+  const grid = Array(N).fill(0).map(() => Array(N).fill(0).map(() => Array(N).fill(0).map(() => [])));
+  const toIndex = x => Math.floor((x + BOX_SIZE / 2) / GRID_SIZE);
+
+  for (let p of particles) {
+    const [i, j, k] = p.position.map(toIndex);
+    grid[i][j][k].push(p);
+  }
+
   for (let p1 of particles) {
-    for (let p2 of particles) {
-      vec3.sub(d, p2.position, p1.position);
-      const dist = vec3.len(d);
-      if (dist > p1.radius + p2.radius) continue;
-
-      vec3.normalize(d, d);
-      const s1 = vec3.dot(p1.velocity, d);
-      const s2 = vec3.dot(p2.velocity, d);
-      const s = s1 - s2;
-      if (s <= 0) continue;
-
-      const w1 = p2.mass / (p1.mass + p2.mass);
-      const w2 = p1.mass / (p1.mass + p2.mass);
-      vec3.scaleAndAdd(p1.velocity, p1.velocity, d, -w1 * (1 + E_SPHERE) * s);
-      vec3.scaleAndAdd(p2.velocity, p2.velocity, d, +w2 * (1 + E_SPHERE) * s);
+    const [i, j, k] = p1.position.map(toIndex);
+    for (let gi of [i - 1, i, i + 1]) {
+      for (let gj of [j - 1, j, j + 1]) {
+        for (let gk of [k - 1, k, k + 1]) {
+          if (gi >= 0 && gi < N && gj >= 0 && gj < N && gk >= 0 && gk < N) {
+            for (let p2 of grid[gi][gj][gk]) {
+              detectCollision(p1, p2);
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -113,10 +149,16 @@ mat4.lookAt(V, eye, center, up);
  * @param {number} timestamp milliseconds
  */
 function draw(timestamp) {
-  // Simulate
-  const dt = prevTimestamp ? (timestamp - prevTimestamp) / 1000 : 0;
+  let dt = 0;
+  if (prevTimestamp) {
+    dt = (timestamp - prevTimestamp) / 1000;
+    ++totalFrames;
+    totalTime += dt;
+    document.querySelector('#fps').innerHTML = `FPS: ${(totalFrames / totalTime).toFixed(2)}`;
+  }
   prevTimestamp = timestamp;
 
+  // Simulate
   updateParticles(dt);
 
   // Render
@@ -142,11 +184,6 @@ function draw(timestamp) {
     gl.vertexAttrib3fv(gl.getAttribLocation(sphereProgram, 'color'), p.color);
     gl.drawElements(sphereGeom.mode, sphereGeom.count, sphereGeom.type, 0);
   }
-
-  // Update FPS
-  ++totalFrames;
-  totalTime += dt;
-  document.querySelector('#fps').innerHTML = `FPS: ${(totalFrames / totalTime).toFixed(2)}`;
 
   requestAnimationFrame(draw);
 }
@@ -174,15 +211,19 @@ async function setup() {
 
   sphereProgram = await compileAndLinkGLSL(gl, 'sphere_vertex.glsl', 'sphere_fragment.glsl');
   sphereGeom = await setupGeomery(gl, sphereProgram, makeSphere());
+  resetParticles();
 
   fillScreen();
   requestAnimationFrame(draw);
 
-  const label = document.querySelector('#control>label');
-  label.textContent = `# particles: ${N_PARTICLE}`;
-  document.querySelector('#control').addEventListener('change', (e) => {
-    N_PARTICLE = Number(e.target.value);
-    label.textContent = `# particles: ${N_PARTICLE}`;
+  const count = document.querySelector('#count');
+  const control = document.querySelector('#control input');
+  count.textContent = 'number of particles: ' + control.value;
+
+  control.addEventListener('input', (e) => {
+    count.textContent = 'number of particles: ' + control.value;
+    N_PARTICLE = Number(control.value);
+    resetParticles();
   });
 }
 
@@ -227,4 +268,8 @@ function makeSphere() {
 
 function random(min = 0, max = min + 1) {
   return min + (max - min) * Math.random();
+}
+
+function clamp(n, min = -Infinity, max = Infinity) {
+  return Math.max(Math.min(n, max), min);
 }
