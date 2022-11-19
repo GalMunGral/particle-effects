@@ -1,211 +1,204 @@
 const { mat4, vec3 } = glMatrix;
 
-const BOX_SIZE = 100;
-const NEAR_PLANE = 10;
-const FAR_PLANE = 4 * BOX_SIZE;
+var prevTimestamp = 0;
+var totalTime = 0;
+var totalFrames = 0;
 
-/** @type {WebGL2RenderingContext} */ var gl;
-/** @type {WebGLProgram} */ var program
-var geom;
+// Physics 
 
-const m = mat4.create();
-const v = mat4.create();
-const p = mat4.create();
-const camera = vec3.fromValues(BOX_SIZE, -BOX_SIZE, BOX_SIZE / 2);
-const center = vec3.fromValues(0, 0, 0);
-const up = vec3.fromValues(0, 0, 1);
-mat4.lookAt(v, camera, center, up);
+const BOX_SIZE = 4;
+const RESET_DELAY_MS = 4000;
+const G_GRAVITY = vec3.fromValues(0, 0, -9.80665);
+const E_SPHERE = 0.9;
+const E_WALL = 0.5;
+const C_AIR = 0.1;
 
-const MIN_RADIUS = BOX_SIZE / 30;
-const MAX_RADIUS = BOX_SIZE / 10;
+var N_PARTICLE = 50;
+var particles = [];
 
+(function resetParticles() {
+  prevTimestamp = 0;
+  totalTime = 0;
+  totalFrames = 0;
 
-// physics
+  const MIN_RADIUS = 0.15 * BOX_SIZE / Math.sqrt(N_PARTICLE);
+  const MAX_RADIUS = 4 * MIN_RADIUS;
 
-function random(min, max) {
-  return Math.random() * (max - min) + min;
-}
-
-let particles = [];
-
-function resetParticles() {
-  particles = Array(50).fill(0).map((_, i) => {
-    let position = vec3.fromValues(0, 0, 0);
-    let velocity = vec3.fromValues(random(-500, 500), random(-500, 500), random(-500, 500));
-    const radius = random(MIN_RADIUS, MAX_RADIUS)
+  particles = Array(N_PARTICLE).fill(0).map(() => {
+    const color = vec3.fromValues(random(), random(), random());
+    const radius = random(MIN_RADIUS, MAX_RADIUS);
+    const mass = radius ** 3;
+    const position = vec3.random(vec3.create(), Math.random() * BOX_SIZE / 2);
+    const velocity = vec3.random(vec3.create(), Math.random() * BOX_SIZE * 5);
     return {
-      color: new Float32Array([Math.random(), Math.random(), Math.random()]),
-      mass: radius ** 3,
-      radius,
       position,
-      velocity
+      velocity,
+      radius,
+      mass,
+      color,
     };
   });
-}
 
-setInterval(resetParticles, 8000);
-resetParticles();
+  setTimeout(resetParticles, RESET_DELAY_MS);
+})();
 
-
-const g = vec3.fromValues(0, 0, -9.8);
-
-const T = mat4.create();
-const S = mat4.create();
-
-function stateUpdate(p, dt) {
-  const { position, velocity } = p;
-  vec3.scaleAndAdd(position, position, velocity, dt);
-
-  for (let i = 0; i < 3; ++i) {
-    if (position[i] > BOX_SIZE / 2) {
-      position[i] = BOX_SIZE / 2;
-      if (velocity[i] > 0) {
-        velocity[i] = -e * velocity[i];
-      }
-    } else if (position[i] < -BOX_SIZE / 2) {
-      position[i] = -BOX_SIZE / 2;
-      if (velocity[i] < 0) {
-        velocity[i] = -e * velocity[i];
-      }
-    }
-  }
-  vec3.scale(velocity, velocity, 0.99);
-  vec3.add(velocity, velocity, g);
-
-}
-
-function drawParticle(p, dt) {
-  
-  const { color, radius, velocity, position } = p;
-
-  // console.log('draw particle', position, velocity, dt)
-  // if (vec3.len(velocity) > 1) {
-    stateUpdate(p, dt);
-  // }
-
-
- 
-  mat4.fromTranslation(T, position);
-  mat4.fromScaling(S, vec3.fromValues(radius, radius, radius));
-  mat4.mul(m, T, S);
-  gl.uniformMatrix4fv(gl.getUniformLocation(program, 'm'), false, m);
-  gl.vertexAttrib3fv(gl.getAttribLocation(program, 'color'), color);
-  gl.drawElements(geom.mode, geom.count, geom.type, 0);
-}
-
-const e = 0.8;
-
-function detectCollision(p1, p2) {
-  const d = vec3.create();
-  vec3.sub(d, p2.position, p1.position);
-  if (vec3.len(d) >= p1.radius + p2.radius) return false;
-
-  vec3.normalize(d, d);
-  const s1 = vec3.dot(p1.velocity, d);
-  const s2 = vec3.dot(p2.velocity, d);
-  const s = s1 - s2;
-  if (s <= 0) return false;
-
-  vec3.scaleAndAdd(p1.velocity, p1.velocity, d, -(p2.mass / (p1.mass + p2.mass)) * (1 + e) * s);
-  vec3.scaleAndAdd(p2.velocity, p2.velocity, d, (p1.mass / (p1.mass + p2.mass)) * (1 + e) * s);
-  return true;
-}
 
 /**
- * Draw one frame
+ * Updates particle states using Euler's method
+ * @param {number} dt time elapsed since last frame
  */
+function updateParticles(dt) {
+  // I. position update
+  for (const p of particles) {
+    vec3.scaleAndAdd(p.position, p.position, p.velocity, dt);
+  }
 
-let time = 0;
-
-function draw(t) {
-  const dt = time ? (t - time) / 1000 : 0;
-  time = t;
-
-  document.querySelector('#fps').textContent = `FPS: ${(1 / dt).toFixed(1)}`;
-
-  gl.clearColor(0.5, 0.5, 0.5, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  if (!geom) return;
-
-  gl.useProgram(program);
-  gl.bindVertexArray(geom.vao);
-  gl.uniform3fv(gl.getUniformLocation(program, 'eye'), camera);
-  gl.uniformMatrix4fv(gl.getUniformLocation(program, 'v'), false, v);
-  gl.uniformMatrix4fv(gl.getUniformLocation(program, 'p'), false, p);
-
-  particles.forEach(p => drawParticle(p, dt))
-  for (let p1 of particles) {
-    for (let p2 of particles) {
-      detectCollision(p1, p2);
+  // II. velocity update
+  for (const p of particles) {
+    // 1. gravity
+    vec3.scaleAndAdd(p.velocity, p.velocity, G_GRAVITY, dt);
+    // 2. drag: a = f/m = -cvr^2/m (assuming all particles are slow) --> dv = -cvr^2t/m
+    vec3.scaleAndAdd(p.velocity, p.velocity, p.velocity, - C_AIR * p.radius ** 2 * dt/ p.mass);
+    // 3. wall collisions: dv = -(1 + e)s --> v[i] = -ev[i]
+    for (let i = 0; i < 3; ++i) {
+      if (
+        BOX_SIZE / 2 - p.position[i] <= p.radius && p.velocity[i] > 0 ||
+        p.position[i] + BOX_SIZE / 2 <= p.radius && p.velocity[i] < 0
+      ) {
+        p.velocity[i] = -E_WALL * p.velocity[i];
+      }
     }
   }
+  // 4. sphere-sphere collisions
+  const d = vec3.create();
+  for (let p1 of particles) {
+    for (let p2 of particles) {
+      vec3.sub(d, p2.position, p1.position);
+      const dist = vec3.len(d);
+      if (dist > p1.radius + p2.radius) continue;
+
+      vec3.normalize(d, d);
+      const s1 = vec3.dot(p1.velocity, d);
+      const s2 = vec3.dot(p2.velocity, d);
+      const s = s1 - s2;
+      if (s <= 0) continue;
+
+      const w1 = p2.mass / (p1.mass + p2.mass);
+      const w2 = p1.mass / (p1.mass + p2.mass);
+      vec3.scaleAndAdd(p1.velocity, p1.velocity, d, -w1 * (1 + E_SPHERE) * s);
+      vec3.scaleAndAdd(p2.velocity, p2.velocity, d, +w2 * (1 + E_SPHERE) * s);
+    }
+  }
+}
+
+// Rendering
+
+/** @type {WebGL2RenderingContext} */ var gl;
+/** @type {WebGLProgram} */ var sphereProgram;
+var sphereGeom;
+
+const NEAR_PLANE = 1;
+const FAR_PLANE = 4 * BOX_SIZE;
+const M = mat4.create();
+const V = mat4.create();
+const P = mat4.create();
+
+const eye = vec3.fromValues(BOX_SIZE, -BOX_SIZE, 0);
+const center = vec3.fromValues(0, 0, 0);
+const up = vec3.fromValues(0, 0, 1);
+mat4.lookAt(V, eye, center, up);
+
+/**
+ * Draws one frame
+ * @param {number} timestamp milliseconds
+ */
+function draw(timestamp) {
+  // Simulate
+  const dt = prevTimestamp ? (timestamp - prevTimestamp) / 1000 : 0;
+  prevTimestamp = timestamp;
+
+  updateParticles(dt);
+
+  // Render
+  gl.clearColor(0.4, 0.4, 0.4, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  if (!sphereGeom) return;
+
+  gl.useProgram(sphereProgram);
+  gl.bindVertexArray(sphereGeom.vao);
+  gl.uniform3fv(gl.getUniformLocation(sphereProgram, 'eye'), eye);
+  gl.uniformMatrix4fv(gl.getUniformLocation(sphereProgram, 'v'), false, V);
+  gl.uniformMatrix4fv(gl.getUniformLocation(sphereProgram, 'p'), false, P);
+
+  const Translation = mat4.create();
+  const Scale = mat4.create();
+
+  for (const p of particles) {
+    mat4.fromTranslation(Translation, p.position);
+    mat4.fromScaling(Scale, vec3.fromValues(p.radius, p.radius, p.radius));
+    mat4.mul(M, Translation, Scale);
+    gl.uniformMatrix4fv(gl.getUniformLocation(sphereProgram, 'm'), false, M);
+    gl.vertexAttrib3fv(gl.getAttribLocation(sphereProgram, 'color'), p.color);
+    gl.drawElements(sphereGeom.mode, sphereGeom.count, sphereGeom.type, 0);
+  }
+
+  // Update FPS
+  ++totalFrames;
+  totalTime += dt;
+  document.querySelector('#fps').innerHTML = `FPS: ${(totalFrames / totalTime).toFixed(2)}`;
+
   requestAnimationFrame(draw);
 }
 
-
-/**
- * Resizes the canvas to completely fill the screen
- */
 function fillScreen() {
-  let canvas = document.querySelector('canvas')
-  document.body.style.margin = '0'
-  canvas.style.width = '100%'
-  canvas.style.height = '100%'
-  canvas.width = canvas.clientWidth
-  canvas.height = canvas.clientHeight
-  canvas.style.width = ''
-  canvas.style.height = ''
-  // to do: update aspect ratio of projection matrix here
-  mat4.perspective(p, Math.PI / 2, canvas.width / canvas.height, NEAR_PLANE, FAR_PLANE);
+  let canvas = document.querySelector('canvas');
+  document.body.style.margin = '0';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  canvas.style.width = '';
+  canvas.style.height = '';
+
+  mat4.perspective(P, Math.PI / 2, canvas.width / canvas.height, NEAR_PLANE, FAR_PLANE);
 
   if (gl) {
-    gl.viewport(0, 0, canvas.width, canvas.height)
+    gl.viewport(0, 0, canvas.width, canvas.height);
   }
 }
 
-/**
- * Compile, link, other option-independent setup
- */
-async function setup(event) {
-  gl = document.querySelector('canvas').getContext('webgl2',
-    // optional configuration object: see https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
-    { antialias: false, depth: true, preserveDrawingBuffer: true }
-  )
-
-  // TODO:::::
+async function setup() {
+  gl = document.querySelector('canvas').getContext('webgl2', { antialias: false, depth: true, preserveDrawingBuffer: true });
   gl.enable(gl.DEPTH_TEST);
-  // gl.enable(gl.CULL_FACE);
-  // gl.enable(gl.BLEND);
-  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  program = await compileAndLinkGLSL(gl, 'sphere_vertex.glsl', 'sphere_fragment.glsl');
-  geom = await setupGeomery(gl, program, generateSphere(20, 20));
+  sphereProgram = await compileAndLinkGLSL(gl, 'sphere_vertex.glsl', 'sphere_fragment.glsl');
+  sphereGeom = await setupGeomery(gl, sphereProgram, makeSphere());
 
   fillScreen();
   requestAnimationFrame(draw);
+
+  const label = document.querySelector('#control>label');
+  label.textContent = `# particles: ${N_PARTICLE}`;
+  document.querySelector('#control').addEventListener('change', (e) => {
+    N_PARTICLE = Number(e.target.value);
+    label.textContent = `# particles: ${N_PARTICLE}`;
+  });
 }
 
-const keysBeingPressed = {};
-window.addEventListener('keydown', event => keysBeingPressed[event.key] = true);
-window.addEventListener('keyup', event => {
-  keysBeingPressed[event.key] = false
-  if (event.key == 'f') {
-    fogEnabled = !fogEnabled;
-  }
-});
+window.addEventListener('load', setup);
+window.addEventListener('resize', fillScreen);
 
-window.addEventListener('load', setup)
-window.addEventListener('resize', fillScreen)
-
-function generateSphere(rings, slices) {
-  const latStep = Math.PI / (rings - 1);
-  const lngStep = 2 * Math.PI / slices;
-  const ind = (i, j) => i * slices + j;
+function makeSphere() {
+  const RINGS = 20;
+  const SLICES = 20;
+  const latStep = Math.PI / (RINGS - 1);
+  const lngStep = 2 * Math.PI / SLICES;
+  const ind = (i, j) => i * SLICES + j;
 
   const positions = [];
-  for (let i = 0; i < rings; ++i) {
-    for (let j = 0; j < slices; ++j) {
+  for (let i = 0; i < RINGS; ++i) {
+    for (let j = 0; j < SLICES; ++j) {
       positions.push([
         Math.sin(i * latStep) * Math.cos(lngStep * j),
         Math.sin(i * latStep) * Math.sin(lngStep * j),
@@ -215,11 +208,11 @@ function generateSphere(rings, slices) {
   }
 
   const triangles = [];
-  for (let i = 0; i < rings - 1; ++i) {
-    for (let j = 0; j < slices; ++j) {
+  for (let i = 0; i < RINGS - 1; ++i) {
+    for (let j = 0; j < SLICES; ++j) {
       triangles.push(
-        [ind(i, j), ind(i + 1, j), ind(i, (j + 1) % slices)],
-        [ind(i, (j + 1) % slices), ind(i + 1, j), ind(i + 1, (j + 1) % slices)]
+        [ind(i, j), ind(i + 1, j), ind(i, (j + 1) % SLICES)],
+        [ind(i, (j + 1) % SLICES), ind(i + 1, j), ind(i + 1, (j + 1) % SLICES)]
       );
     }
   }
@@ -230,4 +223,8 @@ function generateSphere(rings, slices) {
       position: positions,
     },
   }
+}
+
+function random(min = 0, max = min + 1) {
+  return min + (max - min) * Math.random();
 }

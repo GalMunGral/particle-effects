@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>CS 418 Particle Effects</title>
+  <script src="gl-matrix-min.js"></script>
+  <script src="utils.js"></script>
+  <script src="render.js"></script>
+  <style>
+    body {
+      margin: 0;
+      border: none;
+      padding: 0;
+      font-size: 20px;
+    }
+    #display {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+    #fps {
+      position: fixed;
+      top: 0;
+      left: 0;
+      font-size: 20px;
+    }
+    #control {
+      position: fixed;
+      top: 0;
+      right: 0; 
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="display"></canvas>
+  <div id="control">
+    <label></label>
+    <input type="range" min="50" max="500" value="50" step="1">
+  </div>
+  <div id="fps"></div>
+</body>
+
+</html>
