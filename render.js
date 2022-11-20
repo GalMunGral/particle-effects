@@ -10,8 +10,8 @@ const BOX_SIZE = 4;
 const RESET_DELAY_MS = 5000;
 const G_GRAVITY = vec3.fromValues(0, 0, -9.80665);
 const E_SPHERE = 0.9;
-const E_WALL = 0.5;
-const C_AIR = 0.1;
+const E_WALL = 0.6;
+const C_AIR = 0.05;
 
 var N_PARTICLE = 50;
 var MIN_RADIUS = 0;
