@@ -23,8 +23,9 @@ pub fn clear_interval(handle: i32) {
     window().clear_interval_with_handle(handle)
 }
 
-pub fn set_interval(f : &Closure<dyn FnMut()>, timeout: i32) -> Result<i32, JsValue> {
-    window().set_interval_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), timeout)
+pub fn set_interval(f: &Closure<dyn FnMut()>, timeout: i32) -> Result<i32, JsValue> {
+    window()
+        .set_interval_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), timeout)
 }
 
 pub fn request_animation_frame(f: &Closure<dyn FnMut(f32)>) -> Result<i32, JsValue> {

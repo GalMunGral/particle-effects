@@ -11,7 +11,7 @@ extern "C" {
 
 use crate::utils::{
     math::{clamp, rand_range},
-    web::{random_f32},
+    web::random_f32,
 };
 
 const BOX_SIZE: f32 = 4.0;

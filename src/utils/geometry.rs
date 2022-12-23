@@ -27,28 +27,27 @@ pub fn make_sphere() -> Geometry {
     }
 
     let mut triangles = Vec::<u32>::new();
-    for i in 0..RINGS-1 {
+    for i in 0..RINGS - 1 {
         for j in 0..SLICES {
-        triangles.push(ind!(i, j));
-        triangles.push(ind!(i + 1, j));
-        triangles.push(ind!(i, (j + 1) % SLICES));
-        triangles.push(ind!(i, (j + 1) % SLICES));
-        triangles.push(ind!(i + 1, j));
-        triangles.push(ind!(i + 1, (j + 1) % SLICES));
+            triangles.push(ind!(i, j));
+            triangles.push(ind!(i + 1, j));
+            triangles.push(ind!(i, (j + 1) % SLICES));
+            triangles.push(ind!(i, (j + 1) % SLICES));
+            triangles.push(ind!(i + 1, j));
+            triangles.push(ind!(i + 1, (j + 1) % SLICES));
         }
     }
 
-     Geometry {
+    Geometry {
         triangles,
-        attributes: VertexAttrs{
+        attributes: VertexAttrs {
             position: VertexAttrInfo {
                 glsl_name: String::from("position"),
                 size: 3,
                 data: positions,
             },
             normal: None,
-            texcoord: None
-        }
+            texcoord: None,
+        },
     }
 }
-
