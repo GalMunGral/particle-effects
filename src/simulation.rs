@@ -205,10 +205,11 @@ impl Simulation {
             let pos = p.borrow().position;
             grid[ind_f!(pos.x, pos.y, pos.z)].push(p);
         }
+
         for p1 in self.particles.iter() {
             let (i, j, k) = {
                 // need to drop this borrow before collide is called bellow
-                let p = p1.borrow_mut();
+                let p = p1.borrow();
                 (
                     index(p.position.x),
                     index(p.position.y),
