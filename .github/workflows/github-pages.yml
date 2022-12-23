@@ -17,7 +17,7 @@ jobs:
       - name: Build
         run: |
           wasm-pack build --target web
-          mkdir dist
+          mkdir -p dist
           cp -r pkg dist
           cp *.html *.glsl dist
 
