@@ -20,8 +20,7 @@ jobs:
           mkdir -p dist
           cp -r pkg dist
           cp *.html *.glsl dist
-          rm pkg/.gitignore
-          ls -l dist
+          rm dist/pkg/.gitignore
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
