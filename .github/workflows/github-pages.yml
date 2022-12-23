@@ -1,0 +1,28 @@
+name: GitHub Pages
+on:
+  push:
+    branches:
+      - "master"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build
+        run: |
+          wasm-pack build --target web
+          mkdir dist
+          cp -r pkg dist
+          cp *.html *.glsl *.jpeg dist
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+
