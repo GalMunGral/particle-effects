@@ -20,10 +20,12 @@ jobs:
           mkdir -p dist
           cp -r pkg dist
           cp *.html *.glsl dist
-          rm dist/pkg/.gitignore
 
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v1
         with:
-          folder: dist
+          path: 'dist'
 
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
