@@ -82,7 +82,7 @@ impl Particle {
 }
 
 fn collide(p1: &RefCell<Particle>, p2: &RefCell<Particle>) {
-    if RefCell::as_ptr(p1) == RefCell::as_ptr(p2) {
+    if p1.as_ptr() == p2.as_ptr() {
         return;
     }
     let mut p1 = p1.borrow_mut();
