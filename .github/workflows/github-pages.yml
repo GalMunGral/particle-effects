@@ -20,6 +20,7 @@ jobs:
           mkdir -p dist
           cp -r pkg dist
           cp *.html *.glsl dist
+          rm pkg/.gitignore
           ls -l dist
 
       - name: Deploy
