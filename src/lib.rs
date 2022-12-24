@@ -51,7 +51,7 @@ const VERTEX_SHADER_URL: &str = "sphere_vertex.glsl";
 const FRAGMENT_SHADER_URL: &str = "sphere_fragment.glsl";
 const BOX_SIZE: f32 = 4.0;
 const NEAR_PLANE: f32 = 1.0;
-const FAR_PLANE: f32 = 4.0 * BOX_SIZE;
+const FAR_PLANE: f32 = 10.0 * BOX_SIZE;
 const FOCAL_LENGTH: f32 = 200.0;
 const RESET_DELAY_MS: i32 = 5000;
 
@@ -59,7 +59,7 @@ const RESET_DELAY_MS: i32 = 5000;
 pub async fn start() -> Result<(), JsValue> {
     set_panic_hook();
 
-    let camera = Camera::new(BOX_SIZE, -BOX_SIZE, 0.0);
+    let camera = Camera::new(2.0 * BOX_SIZE, -2.0 * BOX_SIZE, BOX_SIZE);
 
     let proj_mat = Rc::new(RefCell::new(Matrix4::<f32>::zeros()));
 
@@ -198,7 +198,7 @@ fn reset_aspect_ratio(
 
     *proj_mat.borrow_mut() = Matrix4::new_perspective(
         canvas.width() as f32 / canvas.height() as f32,
-        PI / 2.0,
+        PI / 4.0,
         NEAR_PLANE,
         FAR_PLANE,
     );
