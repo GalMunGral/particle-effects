@@ -1,3 +1,5 @@
+[DEMO: https://galmungral.github.io/particle-simulation](https://galmungral.github.io/particle-simulation)
+
 <div align="center">
 
   <h1><code>wasm-pack-template</code></h1>
