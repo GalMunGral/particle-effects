@@ -6,7 +6,6 @@ on:
 
 jobs:
   build-and-deploy:
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -27,14 +26,12 @@ jobs:
       - name: Build
         run: |
           wasm-pack build --target web
-          mkdir -p dist
-          cp -r pkg dist
-          cp *.html *.glsl dist
+          cp src/assets/* pkg
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: 'dist'
+          path: pkg
 
       - name: Deploy to GitHub Pages
         id: deployment
