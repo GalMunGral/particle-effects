@@ -1,52 +1,50 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebAssembly + WebGL</title>
+    <style>
+      body {
+        margin: 0;
+        border: none;
+        padding: 0;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+      }
+      #control {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        box-sizing: border-box;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      #display {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
 
-<head>
-  <meta charset="utf-8" />
-  <title>WebAssembly + WebGL</title>
-  <style>
-    body {
-      margin: 0;
-      border: none;
-      padding: 0;
-      position: fixed;
-      left: 0;
-      right: 0;
-      top: 0;
-      bottom: 0;
-    }
-    #control {
-      position: fixed;
-      top: 0;
-      left: 0; 
-      width: 100vw;
-      box-sizing: border-box;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-    }
-    #display {
-      margin: 0;
-      padding: 0;
-      border: 0;
-      width: 100%;
-      height: 100%;
-    }
-  </style>
-</head>
-
-<body>
-  <canvas id="display"></canvas>
-  <div id="control">
-    <input type="range" value="50" min="50" max="40000" step="1">
-    <div id="count"></div>
-    <div id="fps"></div>
-  </div>
-  <script type="module">
-    import wasm from "./pkg/particle_simulation.js";
-    wasm();      
-  </script>
-</body>
-
+  <body>
+    <canvas id="display"></canvas>
+    <div id="control">
+      <input type="range" value="50" min="50" max="40000" step="1" />
+      <div id="count"></div>
+      <div id="fps"></div>
+    </div>
+    <script type="module">
+      import wasm from "./particle_simulation.js";
+      wasm();
+    </script>
+  </body>
 </html>
